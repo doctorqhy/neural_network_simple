@@ -1,0 +1,77 @@
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+
+
+#载入数据集，one_hot=True 把标签转化为只有0、1的列表
+mnist = input_data.read_data_sets('MNIST_data',one_hot=True)
+
+
+#设置每个批次的大小
+batch_size = 150
+
+#计算一共多少批次
+n_batch = mnist.train.num_examples // batch_size
+
+#创建两个占位符
+#每一个图片大小为28x28，有784个特征，代表输入的神经元个数为784
+with tf.name_scope('input'):
+    x = tf.placeholder(tf.float32,shape=[None,784])
+    #标签为0-9，一共十个数字
+    y = tf.placeholder(tf.float32,shape=[None,10])
+
+#构建一个简单的神经网络
+#第一个参数代表上一层神经元个数，第二个参数代表下一层神经元个数
+with tf.name_scope('layer'):
+    with tf.name_scope('weights_L1'):
+        weights_L1 = tf.Variable(tf.zeros([784,10]))
+    with tf.name_scope('biases'):
+        biases_L1 = tf.Variable(tf.zeros([10]))
+    with tf.name_scope('Wx_plus_b_L1'):
+        Wx_plus_b_L1 = tf.matmul(x,weights_L1) + biases_L1
+    with tf.name_scope('prediction'):
+        prediction = tf.nn.softmax(Wx_plus_b_L1)
+
+#二次代价函数，常用于线性输出
+#loss = tf.reduce_mean(tf.square(y - prediction))
+#对数似然代价函数常与softmax一块使用
+with tf.name_scope('train'):
+    with tf.name_scope('loss'):
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=prediction))
+    #定义优化器
+    with tf.name_scope('train'):
+        train_step = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+
+#初始化变量
+init = tf.global_variables_initializer()
+
+
+#定义准确率（针对测试集）
+#如果真实标签最大的位置与预测最大值的位置索引相等返回true否则返回false
+with tf.name_scope('accurancy'):
+    with tf.name_scope('correct_prediction'):
+        correct_prediction = tf.equal(tf.argmax(y,1),tf.argmax(prediction,1))
+    #将true映射为1，false映射为0
+    with tf.name_scope('accurancy'):
+        accurancy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+
+
+#分类
+classify = tf.argmax(prediction,1)
+
+
+with tf.Session() as sess:
+
+    sess.run(init)
+    writer = tf.summary.FileWriter('logs/',sess.graph)
+    for i in range(21):
+        for batch in range(n_batch):
+            #得到一个批次大小的数据的特征和标签
+            batch_xs,batch_ys = mnist.train.next_batch(batch_size)
+            sess.run(train_step,feed_dict={x:batch_xs,y:batch_ys})
+        #每迭代一轮打印分类器准确率
+        acc = sess.run(accurancy,feed_dict={x:mnist.test.images,y:mnist.test.labels})
+        print('iter'+str(i)+',Accurancy'+str(acc))
+
+    #迭代完成后输入分类结果
+    cls = sess.run(classify,feed_dict={x:mnist.test.images[1].reshape([1,784])})
+    print('分类结果为:'+str(cls[0]))
