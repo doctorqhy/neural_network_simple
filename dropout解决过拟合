@@ -1,0 +1,92 @@
+#使用dropout解决过拟合问题
+
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+
+
+#载入数据集，one_hot=True 把标签转化为只有0、1的列表
+mnist = input_data.read_data_sets('MNIST_data',one_hot=True)
+
+
+#设置每个批次的大小
+batch_size = 150
+
+#计算一共多少批次
+n_batch = mnist.train.num_examples // batch_size
+
+
+
+#创建两个占位符
+#每一个图片大小为28x28，有784个特征，代表输入的神经元个数为784
+x = tf.placeholder(tf.float32,shape=[None,784])
+#标签为0-9，一共十个数字
+y = tf.placeholder(tf.float32,shape=[None,10])
+keep_prob = tf.placeholder(tf.float32)
+
+
+#第一个参数代表上一层神经元个数，第二个参数代表下一层神经元个数
+weights_L1 = tf.Variable(tf.random_normal([784,2000],stddev=0.1))
+biases_L1 = tf.Variable(tf.zeros([2000])+0.1)
+Wx_plus_b_L1 = tf.matmul(x,weights_L1) + biases_L1
+L1 = tf.nn.tanh(Wx_plus_b_L1)
+drop_L1 = tf.nn.dropout(L1,keep_prob)
+
+
+weights_L2 = tf.Variable(tf.random_normal([2000,2000],stddev=0.1))
+biases_L2 = tf.Variable(tf.zeros([2000])+0.1)
+Wx_plus_b_L2 = tf.matmul(drop_L1,weights_L2) + biases_L2
+L2 = tf.nn.tanh(Wx_plus_b_L2)
+drop_L2 = tf.nn.dropout(L2,keep_prob)
+
+
+weights_L3 = tf.Variable(tf.random_normal([2000,1000],stddev=0.1))
+biases_L3 = tf.Variable(tf.zeros([1000])+0.1)
+Wx_plus_b_L3 = tf.matmul(drop_L2,weights_L3) + biases_L3
+L3 = tf.nn.tanh(Wx_plus_b_L3)
+drop_L3 = tf.nn.dropout(L3,keep_prob)
+
+#输出层
+weights_L4 = tf.Variable(tf.random_normal([1000,10],stddev=0.1))
+biases_L4 = tf.Variable(tf.zeros([10])+0.1)
+Wx_plus_b_L4 = tf.matmul(drop_L3,weights_L4) + biases_L4
+prediction = tf.nn.softmax(Wx_plus_b_L4)
+
+#二次代价函数，常用于线性输出
+#loss = tf.reduce_mean(tf.square(y - prediction))
+#对数似然代价函数常与softmax一块使用
+loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=prediction))
+#定义优化器
+train_step = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+
+#初始化变量
+init = tf.global_variables_initializer()
+
+
+#定义准确率（针对测试集）
+#如果真实标签最大的位置与预测最大值的位置索引相等返回true否则返回false
+correct_prediction = tf.equal(tf.argmax(y,1),tf.argmax(prediction,1))
+#将true映射为1，false映射为0
+accurancy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+
+
+#分类
+classify = tf.argmax(prediction,1)
+
+
+with tf.Session() as sess:
+
+    sess.run(init)
+    for i in range(21):
+        for batch in range(n_batch):
+            #得到一个批次大小的数据的特征和标签
+            batch_xs,batch_ys = mnist.train.next_batch(batch_size)
+            sess.run(train_step,feed_dict={x:batch_xs,y:batch_ys,keep_prob:1.0})
+
+        #每迭代一轮打印分类器准确率
+        test_acc = sess.run(accurancy,feed_dict={x:mnist.test.images,y:mnist.test.labels,keep_prob:1.0})
+        train_acc = sess.run(accurancy, feed_dict={x: mnist.train.images, y: mnist.train.labels,keep_prob:1.0})
+        print('iter'+str(i)+',Accurancy test' + str(test_acc) + ',Accurancy test' + str(train_acc))
+
+    #迭代完成后输入分类结果
+    cls = sess.run(classify,feed_dict={x:mnist.test.images[1].reshape([1,784])})
+    print('分类结果为:'+str(cls[0]))
